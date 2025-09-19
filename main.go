@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -30,7 +31,7 @@ var (
 	nextOrderID = 1
 )
 
-// Full CORS middleware
+// Full CORS middleware for Flutter
 func withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -45,25 +46,25 @@ func withCORS(h http.Handler) http.Handler {
 	})
 }
 
-// Serve images from folder (absolute path, force HTTPS)
+// Serve images from folder (keep folder structure, encode file names)
 func serveImagesFromFolder(w http.ResponseWriter, r *http.Request, folder, route string) {
-	wd, _ := os.Getwd()
-	folderPath := wd + "/" + folder
-
-	files, err := os.ReadDir(folderPath)
+	files, err := os.ReadDir(folder)
 	if err != nil {
 		http.Error(w, "Failed to read images directory: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	baseURL := "https://zone-out-backend-server.onrender.com"
-
 	var products []Product
 	id := 1
+
 	for _, file := range files {
 		if !file.IsDir() {
-			url := baseURL + "/images/" + route + "/" + file.Name()
-			products = append(products, Product{ID: id, URL: url})
+			encodedName := url.PathEscape(file.Name()) // Encode spaces/special chars
+			products = append(products, Product{
+				ID:  id,
+				URL: baseURL + "/images/" + route + "/" + encodedName,
+			})
 			id++
 		}
 	}
@@ -111,7 +112,6 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 			result = []Order{}
 		}
 
-		// Ensure Items never nil
 		for i := range result {
 			if result[i].Items == nil {
 				result[i].Items = []Product{}
@@ -127,6 +127,7 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
+
 		if strings.TrimSpace(in.Username) == "" {
 			http.Error(w, "username required", http.StatusBadRequest)
 			return
@@ -186,39 +187,36 @@ func orderByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	wd, _ := os.Getwd()
-	imagesPath := wd + "/images"
-
 	// Static files
-	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir(imagesPath))))
+	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("./images"))))
 
-	// Categories
+	// Categories (folders)
 	http.HandleFunc("/api/keychains", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/Keychains", "Keychains")
+		serveImagesFromFolder(w, r, "./images/Keychains", "Keychains")
 	})
 	http.HandleFunc("/api/stickers", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/Stickers", "Stickers")
+		serveImagesFromFolder(w, r, "./images/Stickers", "Stickers")
 	})
 	http.HandleFunc("/api/pocketwatch", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/PocketWatch", "PocketWatch")
+		serveImagesFromFolder(w, r, "./images/PocketWatch", "PocketWatch")
 	})
 	http.HandleFunc("/api/bracelet", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/Bracelet", "Bracelet")
+		serveImagesFromFolder(w, r, "./images/Bracelet", "Bracelet")
 	})
 	http.HandleFunc("/api/lockets", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/Lockets", "Lockets")
+		serveImagesFromFolder(w, r, "./images/Lockets", "Lockets")
 	})
 	http.HandleFunc("/api/posters", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/Posters", "Posters")
+		serveImagesFromFolder(w, r, "./images/Posters", "Posters")
 	})
 	http.HandleFunc("/api/anime", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/Anime", "Anime")
+		serveImagesFromFolder(w, r, "./images/Anime", "Anime")
 	})
 	http.HandleFunc("/api/polaroids", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/Polaroids", "Polaroids")
+		serveImagesFromFolder(w, r, "./images/Polaroids", "Polaroids")
 	})
 	http.HandleFunc("/api/albums", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "images/Albums", "Albums")
+		serveImagesFromFolder(w, r, "./images/Albums", "Albums")
 	})
 
 	// Orders API
@@ -232,7 +230,6 @@ func main() {
 		port = "8080"
 	}
 
-	addr := ":" + port
-	log.Println("🚀 Server running at http://localhost" + addr)
-	log.Fatal(http.ListenAndServe(addr, withCORS(http.DefaultServeMux)))
+	log.Println("🚀 Server running at http://localhost:" + port)
+	log.Fatal(http.ListenAndServe(":"+port, withCORS(http.DefaultServeMux)))
 }
