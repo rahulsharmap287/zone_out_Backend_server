@@ -30,12 +30,13 @@ var (
 	nextOrderID = 1
 )
 
-// ✅ CORS
+// ✅ Full CORS middleware for Flutter
 func withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Expose-Headers", "*")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -44,7 +45,7 @@ func withCORS(h http.Handler) http.Handler {
 	})
 }
 
-// ✅ Serve Images (dynamic baseURL: works local + Render)
+// ✅ Serve Images (force HTTPS for Render)
 func serveImagesFromFolder(w http.ResponseWriter, r *http.Request, folder, route string) {
 	files, err := os.ReadDir(folder)
 	if err != nil {
@@ -52,12 +53,8 @@ func serveImagesFromFolder(w http.ResponseWriter, r *http.Request, folder, route
 		return
 	}
 
-	// ⚡ BaseURL pick karo request se (local pe http, Render pe https)
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	baseURL := scheme + "://" + r.Host
+	// ⚡ Force HTTPS for all image URLs
+	baseURL := "https://zone-out-backend-server.onrender.com"
 
 	var products []Product
 	id := 1
@@ -102,10 +99,8 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 		var result []Order
 		for _, o := range orders {
 			if username == "admin" {
-				// admin -> sab orders
 				result = append(result, o)
 			} else if o.Username == username && !o.Hidden {
-				// user -> sirf apne aur hidden false orders
 				result = append(result, o)
 			}
 		}
@@ -177,8 +172,7 @@ func main() {
 	// ✅ Static files
 	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("./images"))))
 
-	// ✅ Categories
-	// ✅ Categories (updated with new folders)
+	// ✅ Categories (folders remain unchanged)
 	http.HandleFunc("/api/keychains", func(w http.ResponseWriter, r *http.Request) {
 		serveImagesFromFolder(w, r, "./images/Keychains", "Keychains")
 	})
@@ -212,10 +206,10 @@ func main() {
 	http.HandleFunc("/api/orders/", orderByIDHandler) // DELETE
 	http.HandleFunc("/api/hideOrder", hideOrderHandler)
 
-	// ⚡ Render pe PORT env variable deta hai
+	// ⚡ Render PORT
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // local ke liye
+		port = "8080" // local
 	}
 
 	addr := ":" + port
