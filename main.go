@@ -44,19 +44,26 @@ func withCORS(h http.Handler) http.Handler {
 	})
 }
 
-// ✅ Serve Images
-func serveImagesFromFolder(w http.ResponseWriter, folder, route string) {
+// ✅ Serve Images (dynamic baseURL: works local + Render)
+func serveImagesFromFolder(w http.ResponseWriter, r *http.Request, folder, route string) {
 	files, err := os.ReadDir(folder)
 	if err != nil {
 		http.Error(w, "Failed to read images directory", http.StatusInternalServerError)
 		return
 	}
 
+	// ⚡ BaseURL pick karo request se (local pe http, Render pe https)
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	baseURL := scheme + "://" + r.Host
+
 	var products []Product
 	id := 1
 	for _, file := range files {
 		if !file.IsDir() {
-			url := "http://192.168.1.12:8080/images/" + route + "/" + file.Name()
+			url := baseURL + "/images/" + route + "/" + file.Name()
 			products = append(products, Product{ID: id, URL: url})
 			id++
 		}
@@ -95,8 +102,10 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 		var result []Order
 		for _, o := range orders {
 			if username == "admin" {
+				// admin -> sab orders
 				result = append(result, o)
 			} else if o.Username == username && !o.Hidden {
+				// user -> sirf apne aur hidden false orders
 				result = append(result, o)
 			}
 		}
@@ -164,66 +173,52 @@ func orderByIDHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ✅ Delete all orders by username (Admin bulk delete)
-func deleteUserSelections(w http.ResponseWriter, r *http.Request) {
-	uname := r.URL.Query().Get("username")
-	if uname == "" {
-		http.Error(w, "Username required", http.StatusBadRequest)
-		return
-	}
-
-	ordersMu.Lock()
-	defer ordersMu.Unlock()
-
-	newOrders := []Order{}
-	for _, o := range orders {
-		if o.Username != uname {
-			newOrders = append(newOrders, o)
-		}
-	}
-	orders = newOrders
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("All orders for user deleted"))
-}
-
 func main() {
+	// ✅ Static files
 	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("./images"))))
 
+	// ✅ Categories
+	// ✅ Categories (updated with new folders)
 	http.HandleFunc("/api/keychains", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/Keychains", "Keychains")
+		serveImagesFromFolder(w, r, "./images/Keychains", "Keychains")
 	})
 	http.HandleFunc("/api/stickers", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/Stickers", "Stickers")
+		serveImagesFromFolder(w, r, "./images/Stickers", "Stickers")
 	})
-	http.HandleFunc("/api/PocketWatch", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/PocketWatch", "PocketWatch")
+	http.HandleFunc("/api/pocketwatch", func(w http.ResponseWriter, r *http.Request) {
+		serveImagesFromFolder(w, r, "./images/PocketWatch", "PocketWatch")
 	})
-	http.HandleFunc("/api/Bracelet", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/Bracelet", "Bracelet")
+	http.HandleFunc("/api/bracelet", func(w http.ResponseWriter, r *http.Request) {
+		serveImagesFromFolder(w, r, "./images/Bracelet", "Bracelet")
 	})
-	http.HandleFunc("/api/Lockets", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/Lockets", "Lockets")
+	http.HandleFunc("/api/lockets", func(w http.ResponseWriter, r *http.Request) {
+		serveImagesFromFolder(w, r, "./images/Lockets", "Lockets")
 	})
-	http.HandleFunc("/api/Posters", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/Posters", "Posters")
+	http.HandleFunc("/api/posters", func(w http.ResponseWriter, r *http.Request) {
+		serveImagesFromFolder(w, r, "./images/Posters", "Posters")
 	})
-	http.HandleFunc("/api/Anime", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/Anime", "Anime")
+	http.HandleFunc("/api/anime", func(w http.ResponseWriter, r *http.Request) {
+		serveImagesFromFolder(w, r, "./images/Anime", "Anime")
 	})
-	http.HandleFunc("/api/Polaroids", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/Polaroids", "Polaroids")
+	http.HandleFunc("/api/polaroids", func(w http.ResponseWriter, r *http.Request) {
+		serveImagesFromFolder(w, r, "./images/Polaroids", "Polaroids")
 	})
-	http.HandleFunc("/api/Albums", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, "./images/Albums", "Albums")
+	http.HandleFunc("/api/albums", func(w http.ResponseWriter, r *http.Request) {
+		serveImagesFromFolder(w, r, "./images/Albums", "Albums")
 	})
 
-	http.HandleFunc("/api/orders", ordersHandler)
-	http.HandleFunc("/api/orders/", orderByIDHandler)
+	// ✅ Orders API
+	http.HandleFunc("/api/orders", ordersHandler)     // GET, POST
+	http.HandleFunc("/api/orders/", orderByIDHandler) // DELETE
 	http.HandleFunc("/api/hideOrder", hideOrderHandler)
-	http.HandleFunc("/api/deleteUserSelections", deleteUserSelections)
 
-	addr := "192.168.1.12:8080"
-	log.Println("🚀 Server running at http://" + addr)
+	// ⚡ Render pe PORT env variable deta hai
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // local ke liye
+	}
+
+	addr := ":" + port
+	log.Println("🚀 Server running at http://localhost" + addr)
 	log.Fatal(http.ListenAndServe(addr, withCORS(http.DefaultServeMux)))
 }
