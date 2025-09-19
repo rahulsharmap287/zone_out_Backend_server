@@ -30,7 +30,7 @@ var (
 	nextOrderID = 1
 )
 
-// ✅ Full CORS middleware for Flutter
+// Full CORS middleware
 func withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -45,15 +45,17 @@ func withCORS(h http.Handler) http.Handler {
 	})
 }
 
-// ✅ Serve Images (force HTTPS for Render)
+// Serve images from folder (absolute path, force HTTPS)
 func serveImagesFromFolder(w http.ResponseWriter, r *http.Request, folder, route string) {
-	files, err := os.ReadDir(folder)
+	wd, _ := os.Getwd()
+	folderPath := wd + "/" + folder
+
+	files, err := os.ReadDir(folderPath)
 	if err != nil {
-		http.Error(w, "Failed to read images directory", http.StatusInternalServerError)
+		http.Error(w, "Failed to read images directory: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// ⚡ Force HTTPS for all image URLs
 	baseURL := "https://zone-out-backend-server.onrender.com"
 
 	var products []Product
@@ -70,7 +72,7 @@ func serveImagesFromFolder(w http.ResponseWriter, r *http.Request, folder, route
 	json.NewEncoder(w).Encode(products)
 }
 
-// ✅ Hide Order (Admin Only)
+// Hide order (admin only)
 func hideOrderHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	id, _ := strconv.Atoi(idStr)
@@ -87,7 +89,7 @@ func hideOrderHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// ✅ Orders (User + Admin)
+// Orders handler
 func ordersHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -105,9 +107,15 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// ✅ ensure [] instead of null
 		if result == nil {
 			result = []Order{}
+		}
+
+		// Ensure Items never nil
+		for i := range result {
+			if result[i].Items == nil {
+				result[i].Items = []Product{}
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -124,7 +132,6 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// ✅ prevent null Items
 		if in.Items == nil {
 			in.Items = []Product{}
 		}
@@ -145,7 +152,7 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ✅ Delete Order by ID
+// Delete order by ID
 func orderByIDHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/orders/")
 	id, err := strconv.Atoi(idStr)
@@ -179,47 +186,50 @@ func orderByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// ✅ Static files
-	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("./images"))))
+	wd, _ := os.Getwd()
+	imagesPath := wd + "/images"
 
-	// ✅ Categories (folders remain unchanged)
+	// Static files
+	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir(imagesPath))))
+
+	// Categories
 	http.HandleFunc("/api/keychains", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/Keychains", "Keychains")
+		serveImagesFromFolder(w, r, "images/Keychains", "Keychains")
 	})
 	http.HandleFunc("/api/stickers", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/Stickers", "Stickers")
+		serveImagesFromFolder(w, r, "images/Stickers", "Stickers")
 	})
 	http.HandleFunc("/api/pocketwatch", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/PocketWatch", "PocketWatch")
+		serveImagesFromFolder(w, r, "images/PocketWatch", "PocketWatch")
 	})
 	http.HandleFunc("/api/bracelet", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/Bracelet", "Bracelet")
+		serveImagesFromFolder(w, r, "images/Bracelet", "Bracelet")
 	})
 	http.HandleFunc("/api/lockets", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/Lockets", "Lockets")
+		serveImagesFromFolder(w, r, "images/Lockets", "Lockets")
 	})
 	http.HandleFunc("/api/posters", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/Posters", "Posters")
+		serveImagesFromFolder(w, r, "images/Posters", "Posters")
 	})
 	http.HandleFunc("/api/anime", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/Anime", "Anime")
+		serveImagesFromFolder(w, r, "images/Anime", "Anime")
 	})
 	http.HandleFunc("/api/polaroids", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/Polaroids", "Polaroids")
+		serveImagesFromFolder(w, r, "images/Polaroids", "Polaroids")
 	})
 	http.HandleFunc("/api/albums", func(w http.ResponseWriter, r *http.Request) {
-		serveImagesFromFolder(w, r, "./images/Albums", "Albums")
+		serveImagesFromFolder(w, r, "images/Albums", "Albums")
 	})
 
-	// ✅ Orders API
-	http.HandleFunc("/api/orders", ordersHandler)     // GET, POST
-	http.HandleFunc("/api/orders/", orderByIDHandler) // DELETE
+	// Orders API
+	http.HandleFunc("/api/orders", ordersHandler)
+	http.HandleFunc("/api/orders/", orderByIDHandler)
 	http.HandleFunc("/api/hideOrder", hideOrderHandler)
 
-	// ⚡ Render PORT
+	// Render port
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // local
+		port = "8080"
 	}
 
 	addr := ":" + port
