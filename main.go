@@ -105,6 +105,11 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// ✅ ensure [] instead of null
+		if result == nil {
+			result = []Order{}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
 
@@ -117,6 +122,11 @@ func ordersHandler(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(in.Username) == "" {
 			http.Error(w, "username required", http.StatusBadRequest)
 			return
+		}
+
+		// ✅ prevent null Items
+		if in.Items == nil {
+			in.Items = []Product{}
 		}
 
 		ordersMu.Lock()
