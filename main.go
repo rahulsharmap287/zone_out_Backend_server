@@ -187,7 +187,13 @@ func orderByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Static files
+	// 1. app-ads.txt serve karne ke liye ye handler add karein
+	http.HandleFunc("/app-ads.txt", func(w http.ResponseWriter, r *http.Request) {
+		// Yahan apni wahi line likhein jo AdMob ne screenshot mein di thi
+		content := "google.com, pub-9726605473744959, DIRECT, f08c47fec0942fa0"
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(content))
+	})
 	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("./images"))))
 
 	// Categories (folders)
