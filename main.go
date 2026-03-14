@@ -236,6 +236,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Println("🚀 Server running at http://localhost:" + port)
-	log.Fatal(http.ListenAndServe(":"+port, withCORS(http.DefaultServeMux)))
+	// Render ke liye host "0.0.0.0" hona zaroori hai
+	log.Println("🚀 Server running on port " + port)
+	log.Fatal(http.ListenAndServe("0.0.0.0:"+port, withCORS(http.DefaultServeMux)))
 }
